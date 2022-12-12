@@ -43,6 +43,10 @@ contract Voting {
         uint candidateVoteCounter
     );
 
+    event RecalculationPositionsEvent(
+        Candidate [] candidates
+    );
+
     constructor(address _owner) {
         owner = _owner;
         emit DeployedOwnerEvent(owner);
@@ -212,7 +216,7 @@ contract Voting {
 
     function recalculatePosition(
         uint _votingId
-    ) private view returns (Candidate[] memory) {
+    ) private returns (Candidate[] memory) {
         Candidate[] memory candidates = votingIdToCandidatesMap[_votingId];
 
         for (uint i = 0; i < candidates.length; i++) {
@@ -235,6 +239,8 @@ contract Voting {
                 candidates[i].position = tempPosition;
             }
         }
+
+        emit RecalculationPositionsEvent(candidates);
         return candidates;
     }
 

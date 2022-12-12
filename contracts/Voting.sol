@@ -148,7 +148,7 @@ contract Voting {
     function checkDuplicatesCandidates(
         Candidate[] memory _candidates,
         string memory nameCandidate
-    ) private {
+    ) private pure {
         uint amountOfCandidates = _candidates.length;
         for (uint i = 0; i < amountOfCandidates; i++) {
             require(
@@ -212,7 +212,7 @@ contract Voting {
 
     function recalculatePosition(
         uint _votingId
-    ) private returns (Candidate[] memory) {
+    ) private view returns (Candidate[] memory) {
         Candidate[] memory candidates = votingIdToCandidatesMap[_votingId];
 
         for (uint i = 0; i < candidates.length; i++) {

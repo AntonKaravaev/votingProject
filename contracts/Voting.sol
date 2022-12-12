@@ -1,6 +1,6 @@
 pragma solidity ^0.8.7;
 
-contract Login {
+contract Voting {
     address private owner;
     uint private votingCounter = 0;
     uint private candidatesCounter = 0;

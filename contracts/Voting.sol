@@ -2,25 +2,26 @@ pragma solidity ^0.8.7;
 
 contract Voting {
     address private owner;
-    uint private votingCounter = 0;
-    uint private candidatesCounter = 0;
-    uint private voterCounter = 0;
+    uint256 private votingCounter = 0;
+    uint256 private candidatesCounter = 0;
+    uint256 private voterCounter = 0;
 
-    mapping(uint => Voting) private idToVotingMap;
-    mapping(uint => address) private idVotingToCreatorMap;
+    mapping(uint256 => Voting) private idToVotingMap;
+    mapping(uint256 => address) private idVotingToCreatorMap;
 
-    mapping(uint => Candidate[]) private votingIdToCandidatesMap;
-    mapping(uint => Candidate) private IdCandidateToCandidateMap;
+    mapping(uint256 => Candidate[]) private votingIdToCandidatesMap;
+    mapping(uint256 => Candidate) private IdCandidateToCandidateMap;
 
-    mapping(uint => Voter[]) private votingIdToVotersMap;
-    mapping(uint => Voter) private voterIdToVoterMap;
+    mapping(uint256 => Voter[]) private votingIdToVotersMap;
+    mapping(uint256 => Voter) private voterIdToVoterMap;
 
-    mapping(uint => uint) private candidateAndPosition;
+    mapping(uint256 => uint256) private candidateAndPosition;
 
     enum TypeOfVoting {
         PUBLIC_VOTING,
         ANONYM_VOTING
     }
+
     enum StagesOfVoting {
         CREATED,
         STARTED,
@@ -29,26 +30,26 @@ contract Voting {
 
     event DeployedOwnerEvent(address ownerAddress);
     event AddAnVotingEvent(address creator, string votingName, uint256 id);
-    event RemoveVotingEvent(uint votingId);
-    event AddCandidateEvent(uint votingId, string nameCandidate);
-    event RemoveCandidateEvent(uint candidateId);
+    event RemoveVotingEvent(uint256 votingId);
+    event AddCandidateEvent(uint256 votingId, string nameCandidate);
+    event RemoveCandidateEvent(uint256 candidateId);
+
     event StartVotingEvent(
         StagesOfVoting stagesOfVoting,
-        uint startTime,
-        uint finishTime
+        uint256 startTime,
+        uint256 finishTime
     );
+
     event ToVoteEvent(
-        uint candidateId,
-        uint voterId,
-        uint candidateVoteCounter
+        uint256 candidateId,
+        uint256 voterId,
+        uint256 candidateVoteCounter
     );
 
-    event RecalculationPositionsEvent(
-        Candidate [] candidates
-    );
+    event RecalculationPositionsEvent(Candidate[] candidates);
 
-    constructor(address _owner) {
-        owner = _owner;
+    constructor() {
+        owner = msg.sender;
         emit DeployedOwnerEvent(owner);
     }
 
@@ -60,7 +61,7 @@ contract Voting {
         _;
     }
 
-    modifier checkStagesOfVotingCREATED(uint _votingId) {
+    modifier checkStagesOfVotingCREATED(uint256 _votingId) {
         require(
             idToVotingMap[_votingId].stagesOfVoting == StagesOfVoting.CREATED,
             "Voting has to be in stage CREATED"
@@ -68,7 +69,7 @@ contract Voting {
         _;
     }
 
-    modifier checkStagesOfVotingSTARTED(uint _votingId) {
+    modifier checkStagesOfVotingSTARTED(uint256 _votingId) {
         require(
             idToVotingMap[_votingId].stagesOfVoting == StagesOfVoting.STARTED,
             "Voting has to be in stage STARTED"
@@ -76,7 +77,7 @@ contract Voting {
         _;
     }
 
-    modifier checkEndTime(uint _votingId) {
+    modifier checkEndTime(uint256 _votingId) {
         require(
             idToVotingMap[_votingId].finishVotingTime < block.timestamp,
             "Time of voting has been finished"
@@ -103,14 +104,14 @@ contract Voting {
 
     struct Voter {
         address voterAddress;
-        uint voterId;
+        uint256 voterId;
         bool voted;
     }
 
-    function createVoting(
-        string memory _nameVoting,
-        TypeOfVoting _votingType
-    ) public returns (uint) {
+    function createVoting(string memory _nameVoting, TypeOfVoting _votingType)
+        public
+        returns (uint256)
+    {
         idVotingToCreatorMap[votingCounter] = msg.sender;
         idToVotingMap[votingCounter] = Voting(
             _nameVoting,
@@ -126,14 +127,11 @@ contract Voting {
         return votingCounter++;
     }
 
-    function addCandidate(
-        uint _votingId,
-        string memory _nameCandidate
-    )
+    function addCandidate(uint256 _votingId, string memory _nameCandidate)
         public
         onlyCreator(_votingId)
         checkStagesOfVotingCREATED(_votingId)
-        returns (uint)
+        returns (uint256)
     {
         checkDuplicatesCandidates(
             votingIdToCandidatesMap[_votingId],
@@ -153,8 +151,8 @@ contract Voting {
         Candidate[] memory _candidates,
         string memory nameCandidate
     ) private pure {
-        uint amountOfCandidates = _candidates.length;
-        for (uint i = 0; i < amountOfCandidates; i++) {
+        uint256 amountOfCandidates = _candidates.length;
+        for (uint256 i = 0; i < amountOfCandidates; i++) {
             require(
                 keccak256(abi.encodePacked((_candidates[i].name))) !=
                     keccak256(abi.encodePacked((nameCandidate))),
@@ -163,19 +161,21 @@ contract Voting {
         }
     }
 
-    function removeCandidate(
-        uint _votingId,
-        uint _candidateId
-    ) public onlyCreator(_votingId) checkStagesOfVotingCREATED(_votingId) {
+    function removeCandidate(uint256 _votingId, uint256 _candidateId)
+        public
+        onlyCreator(_votingId)
+        checkStagesOfVotingCREATED(_votingId)
+    {
         delete votingIdToCandidatesMap[_votingId][_candidateId];
         delete IdCandidateToCandidateMap[_candidateId];
         emit RemoveCandidateEvent(_candidateId);
     }
 
-    function startVoting(
-        uint _votingId,
-        uint finishTime
-    ) public onlyCreator(_votingId) checkStagesOfVotingCREATED(_votingId) {
+    function startVoting(uint256 _votingId, uint256 finishTime)
+        public
+        onlyCreator(_votingId)
+        checkStagesOfVotingCREATED(_votingId)
+    {
         idToVotingMap[_votingId].stagesOfVoting = StagesOfVoting.STARTED;
         idToVotingMap[_votingId].startVotingTime = block.timestamp;
         idToVotingMap[_votingId].finishVotingTime =
@@ -188,14 +188,11 @@ contract Voting {
         );
     }
 
-    function toVote(
-        uint _votingId,
-        uint _candidateId
-    )
+    function toVote(uint256 _votingId, uint256 _candidateId)
         public
         checkStagesOfVotingSTARTED(_votingId)
         checkEndTime(_votingId)
-        returns (Candidate[] memory, uint)
+        returns (Candidate[] memory, uint256)
     {
         votingIdToVotersMap[_votingId][voterCounter] = Voter(
             msg.sender,
@@ -214,13 +211,14 @@ contract Voting {
         return (candidates, voterCounter - 1);
     }
 
-    function recalculatePosition(
-        uint _votingId
-    ) private returns (Candidate[] memory) {
+    function recalculatePosition(uint256 _votingId)
+        private
+        returns (Candidate[] memory)
+    {
         Candidate[] memory candidates = votingIdToCandidatesMap[_votingId];
 
-        for (uint i = 0; i < candidates.length; i++) {
-            for (uint j = i + 1; j < candidates.length; j++) {
+        for (uint256 i = 0; i < candidates.length; i++) {
+            for (uint256 j = i + 1; j < candidates.length; j++) {
                 if (candidates[i].voteCounter < candidates[j].voteCounter) {
                     Candidate memory tempCandidate = candidates[i];
                     candidates[i] = candidates[j];
@@ -230,8 +228,8 @@ contract Voting {
         }
 
         candidates[0].position = 1;
-        uint tempPosition = 1;
-        for (uint i = 1; i < candidates.length; i++) {
+        uint256 tempPosition = 1;
+        for (uint256 i = 1; i < candidates.length; i++) {
             if (candidates[i].voteCounter == candidates[i - 1].voteCounter) {
                 candidates[i].position = tempPosition;
             } else {
@@ -244,9 +242,7 @@ contract Voting {
         return candidates;
     }
 
-    function finishVoting(
-        uint _votingId
-    )
+    function finishVoting(uint256 _votingId)
         public
         checkStagesOfVotingSTARTED(_votingId)
         returns (Candidate[] memory)
@@ -255,9 +251,10 @@ contract Voting {
         return recalculatePosition(_votingId);
     }
 
-    function removeVoting(
-        uint _votingId
-    ) public checkStagesOfVotingCREATED(_votingId) {
+    function removeVoting(uint256 _votingId)
+        public
+        checkStagesOfVotingCREATED(_votingId)
+    {
         delete idToVotingMap[_votingId];
         delete idVotingToCreatorMap[_votingId];
         emit RemoveVotingEvent(_votingId);

@@ -1,21 +1,16 @@
+//SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.7;
 
-contract Voting {
+contract VotingProject {
     address private owner;
     uint256 private votingCounter = 0;
     uint256 private candidatesCounter = 0;
-    uint256 private voterCounter = 0;
 
-    mapping(uint256 => Voting) private idToVotingMap;
+    mapping(uint256 => VotingEntity) private idToVotingMap;
     mapping(uint256 => address) private idVotingToCreatorMap;
-
-    mapping(uint256 => Candidate[]) private votingIdToCandidatesMap;
     mapping(uint256 => Candidate) private IdCandidateToCandidateMap;
+    mapping(address => Voter) private voterAddrToVoterMap;
 
-    mapping(uint256 => Voter[]) private votingIdToVotersMap;
-    mapping(uint256 => Voter) private voterIdToVoterMap;
-
-    mapping(uint256 => uint256) private candidateAndPosition;
 
     enum TypeOfVoting {
         PUBLIC_VOTING,
@@ -33,16 +28,14 @@ contract Voting {
     event RemoveVotingEvent(uint256 votingId);
     event AddCandidateEvent(uint256 votingId, string nameCandidate);
     event RemoveCandidateEvent(uint256 candidateId);
-
     event StartVotingEvent(
         StagesOfVoting stagesOfVoting,
         uint256 startTime,
         uint256 finishTime
     );
-
     event ToVoteEvent(
         uint256 candidateId,
-        uint256 voterId,
+        address voterAddr,
         uint256 candidateVoteCounter
     );
 
@@ -53,9 +46,9 @@ contract Voting {
         emit DeployedOwnerEvent(owner);
     }
 
-    modifier onlyCreator(uint256 _id) {
+    modifier onlyCreator(uint256 _votingId) {
         require(
-            idVotingToCreatorMap[_id] == msg.sender,
+            idVotingToCreatorMap[_votingId] == msg.sender,
             "Not a creator of this voting"
         );
         _;
@@ -79,13 +72,32 @@ contract Voting {
 
     modifier checkEndTime(uint256 _votingId) {
         require(
-            idToVotingMap[_votingId].finishVotingTime < block.timestamp,
+            block.timestamp < idToVotingMap[_votingId].finishVotingTime,
             "Time of voting has been finished"
         );
         _;
     }
 
-    struct Voting {
+     modifier checkItsFirstVoting() {
+        require(
+            voterAddrToVoterMap[msg.sender].voted == false,
+            "It is not the first voting of this voter"
+        );
+        _;
+    }
+
+    struct Candidate {
+        string name;
+        uint256 id;
+        uint256 voteCounter;
+    }
+
+    struct Voter {
+        uint candidateId;
+        bool voted;
+    }
+
+    struct VotingEntity {
         string name;
         uint256 id;
         TypeOfVoting votingType;
@@ -95,25 +107,12 @@ contract Voting {
         uint256 finishVotingTime;
     }
 
-    struct Candidate {
-        string name;
-        uint256 id;
-        uint256 voteCounter;
-        uint256 position;
-    }
-
-    struct Voter {
-        address voterAddress;
-        uint256 voterId;
-        bool voted;
-    }
-
     function createVoting(string memory _nameVoting, TypeOfVoting _votingType)
         public
         returns (uint256)
     {
         idVotingToCreatorMap[votingCounter] = msg.sender;
-        idToVotingMap[votingCounter] = Voting(
+        idToVotingMap[votingCounter] = VotingEntity(
             _nameVoting,
             votingCounter,
             _votingType,
@@ -133,48 +132,28 @@ contract Voting {
         checkStagesOfVotingCREATED(_votingId)
         returns (uint256)
     {
-        checkDuplicatesCandidates(
-            votingIdToCandidatesMap[_votingId],
-            _nameCandidate
-        );
-        votingIdToCandidatesMap[_votingId][candidatesCounter] = Candidate(
-            _nameCandidate,
-            candidatesCounter,
-            0,
-            0
-        );
+
+        IdCandidateToCandidateMap[candidatesCounter] = Candidate(_nameCandidate, candidatesCounter, 0);
         emit AddCandidateEvent(_votingId, _nameCandidate);
         return candidatesCounter++;
-    }
-
-    function checkDuplicatesCandidates(
-        Candidate[] memory _candidates,
-        string memory nameCandidate
-    ) private pure {
-        uint256 amountOfCandidates = _candidates.length;
-        for (uint256 i = 0; i < amountOfCandidates; i++) {
-            require(
-                keccak256(abi.encodePacked((_candidates[i].name))) !=
-                    keccak256(abi.encodePacked((nameCandidate))),
-                "You can't add the same candidate twice"
-            );
-        }
     }
 
     function removeCandidate(uint256 _votingId, uint256 _candidateId)
         public
         onlyCreator(_votingId)
         checkStagesOfVotingCREATED(_votingId)
+        returns (bool)
     {
-        delete votingIdToCandidatesMap[_votingId][_candidateId];
         delete IdCandidateToCandidateMap[_candidateId];
         emit RemoveCandidateEvent(_candidateId);
+        return true;
     }
 
     function startVoting(uint256 _votingId, uint256 finishTime)
         public
         onlyCreator(_votingId)
         checkStagesOfVotingCREATED(_votingId)
+        returns (bool)
     {
         idToVotingMap[_votingId].stagesOfVoting = StagesOfVoting.STARTED;
         idToVotingMap[_votingId].startVotingTime = block.timestamp;
@@ -186,77 +165,45 @@ contract Voting {
             idToVotingMap[_votingId].startVotingTime,
             idToVotingMap[_votingId].finishVotingTime
         );
+        return true;
     }
 
     function toVote(uint256 _votingId, uint256 _candidateId)
         public
         checkStagesOfVotingSTARTED(_votingId)
         checkEndTime(_votingId)
-        returns (Candidate[] memory, uint256)
+        checkItsFirstVoting()
+        returns (bool)
     {
-        votingIdToVotersMap[_votingId][voterCounter] = Voter(
-            msg.sender,
-            voterCounter,
-            true
-        );
-        voterIdToVoterMap[voterCounter] = Voter(msg.sender, voterCounter, true);
+        
+        voterAddrToVoterMap[msg.sender] = Voter(_candidateId, true);
         IdCandidateToCandidateMap[_candidateId].voteCounter += 1;
-        Candidate[] memory candidates = recalculatePosition(_votingId);
         emit ToVoteEvent(
             _candidateId,
-            voterCounter,
+            msg.sender,
             IdCandidateToCandidateMap[_candidateId].voteCounter
         );
-        voterCounter++;
-        return (candidates, voterCounter - 1);
-    }
-
-    function recalculatePosition(uint256 _votingId)
-        private
-        returns (Candidate[] memory)
-    {
-        Candidate[] memory candidates = votingIdToCandidatesMap[_votingId];
-
-        for (uint256 i = 0; i < candidates.length; i++) {
-            for (uint256 j = i + 1; j < candidates.length; j++) {
-                if (candidates[i].voteCounter < candidates[j].voteCounter) {
-                    Candidate memory tempCandidate = candidates[i];
-                    candidates[i] = candidates[j];
-                    candidates[j] = tempCandidate;
-                }
-            }
-        }
-
-        candidates[0].position = 1;
-        uint256 tempPosition = 1;
-        for (uint256 i = 1; i < candidates.length; i++) {
-            if (candidates[i].voteCounter == candidates[i - 1].voteCounter) {
-                candidates[i].position = tempPosition;
-            } else {
-                tempPosition++;
-                candidates[i].position = tempPosition;
-            }
-        }
-
-        emit RecalculationPositionsEvent(candidates);
-        return candidates;
+        return (true);
     }
 
     function finishVoting(uint256 _votingId)
         public
         checkStagesOfVotingSTARTED(_votingId)
-        returns (Candidate[] memory)
+        returns (bool)
     {
         idToVotingMap[_votingId].stagesOfVoting = StagesOfVoting.FINISHED;
-        return recalculatePosition(_votingId);
+        return true;
     }
 
     function removeVoting(uint256 _votingId)
         public
         checkStagesOfVotingCREATED(_votingId)
+        onlyCreator(_votingId)
+        returns (bool)
     {
         delete idToVotingMap[_votingId];
         delete idVotingToCreatorMap[_votingId];
         emit RemoveVotingEvent(_votingId);
+        return true;
     }
 }
